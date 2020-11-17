@@ -455,6 +455,7 @@ static int tas2505_set_bias_level(struct snd_soc_codec *codec,
 		case SND_SOC_BIAS_OFF:
 			if (current_lvl == SND_SOC_BIAS_STANDBY)
 				tas2505_power_off(codec);
+			break;
 		default:
 			dev_err(codec->dev, "Invalid bias level\n");
 			return -EINVAL;
