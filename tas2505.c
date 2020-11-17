@@ -186,7 +186,7 @@ static const struct tas2505_rate_divs tas2505_divs[] = {
 };
 
 struct tas2505_priv {
-	struct snd_soc_codec *codec;
+	struct snd_soc_component *component;
 	struct device *dev;
 	struct regmap *regmap;
 	u32 sysclk;
@@ -194,10 +194,10 @@ struct tas2505_priv {
 	int rate_div_line;
 };
 
-static int tas2505_setup_pll(struct snd_soc_codec *codec,
+static int tas2505_setup_pll(struct snd_soc_component *component,
 	struct snd_pcm_hw_params *params)
 {
-	struct tas2505_priv *tas2505 = snd_soc_codec_get_drvdata(codec);
+	struct tas2505_priv *tas2505 = snd_soc_component_get_drvdata(component);
 	int mclk_p = tas2505->sysclk / tas2505->p_div;
 	int match = -1;
 	u8 p_div;
@@ -214,7 +214,7 @@ static int tas2505_setup_pll(struct snd_soc_codec *codec,
 	}
 
 	if (match == -1) {
-		dev_err(codec->dev,
+		dev_err(component->dev,
 			"Sample rate (%u) and format not supported\n",
 			params_rate(params));
 		return -EINVAL;
@@ -225,20 +225,20 @@ static int tas2505_setup_pll(struct snd_soc_codec *codec,
 	p_div = (tas2505->p_div == 8) ? 0 : tas2505->p_div;
 	p_div <<= TAS2505_PLLPR_P_SHIFT;
 
-	snd_soc_update_bits(codec, TAS2505_PLLPR, TAS2505_PLLPR_P_MASK,
+	snd_soc_component_update_bits(component, TAS2505_PLLPR, TAS2505_PLLPR_P_MASK,
 		p_div);
-	snd_soc_update_bits(codec, TAS2505_PLLPR, TAS2505_PLLPR_R_MASK,
+	snd_soc_component_update_bits(component, TAS2505_PLLPR, TAS2505_PLLPR_R_MASK,
 		tas2505_divs[match].pll_r);
-	snd_soc_write(codec, TAS2505_PLLJ, tas2505_divs[match].pll_j);
-	snd_soc_write(codec, TAS2505_PLLDMSB, tas2505_divs[match].pll_d >> 8);
-	snd_soc_write(codec, TAS2505_PLLDLSB, tas2505_divs[match].pll_d & 0xff);
-	snd_soc_update_bits(codec, TAS2505_NDAC, TAS2505_PLL_DAC_MASK,
+	snd_soc_component_write(component, TAS2505_PLLJ, tas2505_divs[match].pll_j);
+	snd_soc_component_write(component, TAS2505_PLLDMSB, tas2505_divs[match].pll_d >> 8);
+	snd_soc_component_write(component, TAS2505_PLLDLSB, tas2505_divs[match].pll_d & 0xff);
+	snd_soc_component_update_bits(component, TAS2505_NDAC, TAS2505_PLL_DAC_MASK,
 		tas2505_divs[match].ndac);
-	snd_soc_update_bits(codec, TAS2505_MDAC, TAS2505_PLL_DAC_MASK,
+	snd_soc_component_update_bits(component, TAS2505_MDAC, TAS2505_PLL_DAC_MASK,
 		tas2505_divs[match].mdac);
-	snd_soc_write(codec, TAS2505_DOSRMSB, tas2505_divs[match].dosr >> 8);
-	snd_soc_write(codec, TAS2505_DOSRLSB, tas2505_divs[match].dosr & 0xff);
-	snd_soc_update_bits(codec, TAS2505_BCLKNDIV, TAS2505_BCLKNDIV_MASK,
+	snd_soc_component_write(component, TAS2505_DOSRMSB, tas2505_divs[match].dosr >> 8);
+	snd_soc_component_write(component, TAS2505_DOSRLSB, tas2505_divs[match].dosr & 0xff);
+	snd_soc_component_update_bits(component, TAS2505_BCLKNDIV, TAS2505_BCLKNDIV_MASK,
 		(tas2505_divs[match].dosr * tas2505_divs[match].mdac) / snd_soc_params_to_frame_size(params));
 
 	return 0;
@@ -247,7 +247,7 @@ static int tas2505_setup_pll(struct snd_soc_codec *codec,
 static int tas2505_hw_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *params, struct snd_soc_dai *dai)
 {
-	struct snd_soc_codec *codec = dai->codec;
+	struct snd_soc_component *component = dai->component;
 	u8 data = 0;
 
 	switch (params_width(params)) {
@@ -267,29 +267,29 @@ static int tas2505_hw_params(struct snd_pcm_substream *substream,
 			break;
 
 		default:
-			dev_err(codec->dev, "Unsupported width %d\n",
+			dev_err(component->dev, "Unsupported width %d\n",
 				params_width(params));
 			return -EINVAL;
 	}
 
 	data <<= TAS2505_IFACE1_DATALEN_SHIFT;
 
-	snd_soc_update_bits(codec, TAS2505_IFACE1,
+	snd_soc_component_update_bits(component, TAS2505_IFACE1,
 		TAS2505_IFACE1_DATALEN_MASK, data);
 
-	return tas2505_setup_pll(codec, params);
+	return tas2505_setup_pll(component, params);
 }
 
 static int tas2505_dac_mute(struct snd_soc_dai *codec_dai, int mute)
 {
-	struct snd_soc_codec *codec = codec_dai->codec;
+	struct snd_soc_component *component = codec_dai->component;
 
 	if (mute) {
-		snd_soc_update_bits(codec, TAS2505_DACSETUP2,
+		snd_soc_component_update_bits(component, TAS2505_DACSETUP2,
 			TAS2505_DACSETUP2_MUTE_MASK,
 			TAS2505_DACSETUP2_MUTE_MASK);
 	} else {
-		snd_soc_update_bits(codec, TAS2505_DACSETUP2,
+		snd_soc_component_update_bits(component, TAS2505_DACSETUP2,
 			TAS2505_DACSETUP2_MUTE_MASK, 0x0);
 	}
 
@@ -298,7 +298,7 @@ static int tas2505_dac_mute(struct snd_soc_dai *codec_dai, int mute)
 
 static int tas2505_set_dai_fmt(struct snd_soc_dai *codec_dai, unsigned int fmt)
 {
-	struct snd_soc_codec *codec = codec_dai->codec;
+	struct snd_soc_component *component = codec_dai->component;
 	u8 iface_reg1 = 0;
 	u8 iface_reg3 = 0;
 
@@ -348,12 +348,12 @@ static int tas2505_set_dai_fmt(struct snd_soc_dai *codec_dai, unsigned int fmt)
 			break;
 
 		default:
-			dev_err(codec->dev, "Invalid DAI interface format\n");
+			dev_err(component->dev, "Invalid DAI interface format\n");
 			return -EINVAL;
 	}
 
-	snd_soc_write(codec, TAS2505_IFACE1, iface_reg1);
-	snd_soc_update_bits(codec, TAS2505_IFACE3,
+	snd_soc_component_write(component, TAS2505_IFACE1, iface_reg1);
+	snd_soc_component_update_bits(component, TAS2505_IFACE3,
 		TAS2505_IFACE3_BCLKINV_MASK | TAS2505_IFACE3_BDIVCLKIN_MASK,
 		iface_reg3);
 
@@ -363,8 +363,8 @@ static int tas2505_set_dai_fmt(struct snd_soc_dai *codec_dai, unsigned int fmt)
 static int tas2505_set_dai_sysclk(struct snd_soc_dai *codec_dai, int clk_id,
 	unsigned int freq, int dir)
 {
-	struct snd_soc_codec *codec = codec_dai->codec;
-	struct tas2505_priv *tas2505 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_component *component = codec_dai->component;
+	struct tas2505_priv *tas2505 = snd_soc_component_get_drvdata(component);
 	int i, x;
 
 	dev_dbg(tas2505->dev, "clk_id: %d, freq: %d\n", clk_id, freq);
@@ -382,7 +382,7 @@ static int tas2505_set_dai_sysclk(struct snd_soc_dai *codec_dai, int clk_id,
 	return -EINVAL;
 
 found_p_div:
-	snd_soc_write(codec, TAS2505_CLKMUX,
+	snd_soc_component_write(component, TAS2505_CLKMUX,
 		(clk_id << TAS2505_PLL_CLKIN_SHIFT) | TAS2505_CODEC_CLKIN_PLL);
 	
 	tas2505->sysclk = freq;
@@ -390,106 +390,102 @@ found_p_div:
 	return 0;
 }
 
-static void tas2505_clk_on(struct snd_soc_codec *codec)
+static void tas2505_clk_on(struct snd_soc_component *component)
 {
 	u8 mask = TAS2505_PM_MASK;
 	u8 on = TAS2505_PM_MASK;
 
-	snd_soc_update_bits(codec, TAS2505_PLLPR, mask, on);
+
+	snd_soc_component_update_bits(component, TAS2505_PLLPR, mask, on);
 	mdelay(15);
-	snd_soc_update_bits(codec, TAS2505_NDAC, mask, on);
-	snd_soc_update_bits(codec, TAS2505_MDAC, mask, on);
-	snd_soc_update_bits(codec, TAS2505_BCLKNDIV, mask, on);
+	snd_soc_component_update_bits(component, TAS2505_NDAC, mask, on);
+	snd_soc_component_update_bits(component, TAS2505_MDAC, mask, on);
+	snd_soc_component_update_bits(component, TAS2505_BCLKNDIV, mask, on);
 }
 
-static void tas2505_clk_off(struct snd_soc_codec *codec)
+static void tas2505_clk_off(struct snd_soc_component *component)
 {
 	u8 mask = TAS2505_PM_MASK;
 
-	snd_soc_update_bits(codec, TAS2505_BCLKNDIV, mask, 0);
-	snd_soc_update_bits(codec, TAS2505_MDAC, mask, 0);
-	snd_soc_update_bits(codec, TAS2505_NDAC, mask, 0);
-	snd_soc_update_bits(codec, TAS2505_PLLPR, mask, 0);
+	snd_soc_component_update_bits(component, TAS2505_BCLKNDIV, mask, 0);
+	snd_soc_component_update_bits(component, TAS2505_MDAC, mask, 0);
+	snd_soc_component_update_bits(component, TAS2505_NDAC, mask, 0);
+	snd_soc_component_update_bits(component, TAS2505_PLLPR, mask, 0);
 }
 
-static void tas2505_power_on(struct snd_soc_codec *codec)
+static void tas2505_power_on(struct snd_soc_component *component)
 {
-	snd_soc_write(codec, TAS2505_RESET, 1);
+	snd_soc_component_write(component, TAS2505_RESET, 1);
 	usleep_range(500, 1000);
-	snd_soc_update_bits(codec, TAS2505_LDO_CTRL,
+	snd_soc_component_update_bits(component, TAS2505_LDO_CTRL,
 		TAS2505_LDO_PLL_HP_LVL_MASK, 0);
-	snd_soc_update_bits(codec, TAS2505_REF_POR_LDO_BGAP_CTRL,
+	snd_soc_component_update_bits(component, TAS2505_REF_POR_LDO_BGAP_CTRL,
 		TAS2505_REF_POR_LDO_BGAP_MASTER_REF_MASK,
 		TAS2505_REF_POR_LDO_BGAP_MASTER_REF_MASK);
 }
 
-static void tas2505_power_off(struct snd_soc_codec *codec)
+static void tas2505_power_off(struct snd_soc_component *component)
 {
-	snd_soc_update_bits(codec, TAS2505_REF_POR_LDO_BGAP_CTRL,
+	snd_soc_component_update_bits(component, TAS2505_REF_POR_LDO_BGAP_CTRL,
 		TAS2505_REF_POR_LDO_BGAP_MASTER_REF_MASK, 0);
-	snd_soc_update_bits(codec, TAS2505_LDO_CTRL,
+	snd_soc_component_update_bits(component, TAS2505_LDO_CTRL,
 		TAS2505_LDO_PLL_HP_LVL_MASK,
 		TAS2505_LDO_PLL_HP_LVL_MASK);
 }
 
-static int tas2505_set_bias_level(struct snd_soc_codec *codec,
+static int tas2505_set_bias_level(struct snd_soc_component *component,
 	enum snd_soc_bias_level level)
 {
-	int current_lvl = snd_soc_codec_get_bias_level(codec);
+	int current_lvl = snd_soc_component_get_bias_level(component);
 
 	switch (level) {
 		case SND_SOC_BIAS_ON:
 			break;
 		case SND_SOC_BIAS_PREPARE:
 			if (current_lvl == SND_SOC_BIAS_STANDBY)
-				tas2505_clk_on(codec);
+				tas2505_clk_on(component);
 			break;
 		case SND_SOC_BIAS_STANDBY:
 			if (current_lvl == SND_SOC_BIAS_OFF)
-				tas2505_power_on(codec);
+				tas2505_power_on(component);
 			else if (current_lvl == SND_SOC_BIAS_PREPARE)
-				tas2505_clk_off(codec);
+				tas2505_clk_off(component);
 			else
 				BUG();
 			break;
 		case SND_SOC_BIAS_OFF:
 			if (current_lvl == SND_SOC_BIAS_STANDBY)
-				tas2505_power_off(codec);
+				tas2505_power_off(component);
 			break;
 		default:
-			dev_err(codec->dev, "Invalid bias level\n");
+			dev_err(component->dev, "Invalid bias level\n");
 			return -EINVAL;
 	}
 
 	return 0;
 }
 
-static int tas2505_codec_probe(struct snd_soc_codec *codec)
+static int tas2505_codec_probe(struct snd_soc_component *component)
 {
-	struct tas2505_priv *tas2505 = snd_soc_codec_get_drvdata(codec);
-	tas2505->codec = codec;
+	struct tas2505_priv *tas2505 = snd_soc_component_get_drvdata(component);
+	tas2505->component = component;
 	return 0;
 }
 
-static int tas2505_codec_remove(struct snd_soc_codec *codec)
-{
-	return 0;
-}
-
-static struct snd_soc_codec_driver soc_codec_driver_tas2505 = {
+static struct snd_soc_component_driver soc_codec_driver_tas2505 = {
 	.probe			= tas2505_codec_probe,
-	.remove			= tas2505_codec_remove,
 	.set_bias_level		= tas2505_set_bias_level,
+	.controls		= tas2505_snd_controls,
+	.num_controls		= ARRAY_SIZE(tas2505_snd_controls),
+	.dapm_widgets		= tas2505_dapm_widgets,
+	.num_dapm_widgets	= ARRAY_SIZE(tas2505_dapm_widgets),
+	.dapm_routes		= tas2505_audio_map,
+	.num_dapm_routes	= ARRAY_SIZE(tas2505_audio_map),
 	.suspend_bias_off	= true,
-
-	.component_driver = {
-		.controls		= tas2505_snd_controls,
-		.num_controls		= ARRAY_SIZE(tas2505_snd_controls),
-		.dapm_widgets		= tas2505_dapm_widgets,
-		.num_dapm_widgets	= ARRAY_SIZE(tas2505_dapm_widgets),
-		.dapm_routes		= tas2505_audio_map,
-		.num_dapm_routes	= ARRAY_SIZE(tas2505_audio_map),
-	},
+	.idle_bias_on		= 1,
+	.use_pmdown_time	= 1,
+	.endianness		= 1,
+	.non_legacy_dai_naming	= 1,
 };
 
 static const struct snd_soc_dai_ops tas2505_dai_ops = {
@@ -543,13 +539,13 @@ static int tas2505_i2c_probe(struct i2c_client *i2c,
 
 	dev_set_drvdata(tas2505->dev, tas2505);
 
-	return snd_soc_register_codec( &i2c->dev, &soc_codec_driver_tas2505,
+	return devm_snd_soc_register_component(&i2c->dev, &soc_codec_driver_tas2505,
 		tas2505_dai_driver, ARRAY_SIZE(tas2505_dai_driver));
 }
 
 static int tas2505_i2c_remove(struct i2c_client *i2c)
 {
-	snd_soc_unregister_codec(&i2c->dev);
+	snd_soc_unregister_component(&i2c->dev);
 	return 0;
 }
 
