@@ -1,16 +1,18 @@
-ifndef KDIR
-	KDIR=/lib/modules/$(shell uname -r)/build
+ifndef KERNEL_SRC
+	KERNEL_SRC=/lib/modules/$(shell uname -r)/build
 endif
 
 obj-m := tas2505.o
 
-PWD := $(shell pwd)
+SRC := $(shell pwd)
 
-modules:
-	$(MAKE) -C $(KDIR) M=$(PWD) modules
+all:
+	$(MAKE) -C $(KERNEL_SRC) M=$(SRC)
 
 modules_install:
-	$(MAKE) -C $(KDIR) M=$(PWD) modules_install
+	$(MAKE) -C $(KERNEL_SRC) M=$(SRC) modules_install
 
 clean:
-	$(MAKE) -C $(KDIR) M=$(PWD) clean
+	rm -f *.o *~ core .depend .*.cmd *.ko *.mod.c
+	rm -f Module.markers Module.symvers modules.order
+	rm -rf .tmp_versions Modules.symvers
