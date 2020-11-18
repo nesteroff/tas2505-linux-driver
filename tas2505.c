@@ -181,8 +181,8 @@ struct tas2505_rate_divs {
 };
 
 static const struct tas2505_rate_divs tas2505_divs[] = {
-	{ 12288000, 44100, 1, 7, 35, 4, 4, 128 },
-	{ 12288000, 48000, 1, 7, 0, 7, 2, 128 },
+	{ 12000000, 44100, 1, 7, 560, 3, 5, 128 },
+	{ 12000000, 48000, 1, 7, 1680, 7, 2, 128 },
 };
 
 struct tas2505_priv {
@@ -202,6 +202,10 @@ static int tas2505_setup_pll(struct snd_soc_component *component,
 	int match = -1;
 	u8 p_div;
 	int i;
+
+	/* Use internal on-chip PLL as CODEC_CLKIN (MCLK drives PLL only) */
+	snd_soc_component_update_bits(component, TAS2505_CLKMUX,
+			    TAS2505_CODEC_CLKIN_MASK, TAS2505_CODEC_CLKIN_PLL);
 
 	for (i = 0; i < ARRAY_SIZE(tas2505_divs); i++) {
 		if (
@@ -395,7 +399,6 @@ static void tas2505_clk_on(struct snd_soc_component *component)
 	u8 mask = TAS2505_PM_MASK;
 	u8 on = TAS2505_PM_MASK;
 
-
 	snd_soc_component_update_bits(component, TAS2505_PLLPR, mask, on);
 	mdelay(15);
 	snd_soc_component_update_bits(component, TAS2505_NDAC, mask, on);
@@ -415,8 +418,21 @@ static void tas2505_clk_off(struct snd_soc_component *component)
 
 static void tas2505_power_on(struct snd_soc_component *component)
 {
+	struct tas2505_priv *tas2505 = snd_soc_component_get_drvdata(component);
+	int ret;
+
+	regcache_cache_only(tas2505->regmap, false);
+
 	snd_soc_component_write(component, TAS2505_RESET, 1);
 	usleep_range(500, 1000);
+
+	ret = regcache_sync(tas2505->regmap);
+	if (ret) {
+		dev_err(component->dev,
+			"Failed to restore cache: %d\n", ret);
+		regcache_cache_only(tas2505->regmap, true);
+	}
+
 	snd_soc_component_update_bits(component, TAS2505_LDO_CTRL,
 		TAS2505_LDO_PLL_HP_LVL_MASK, 0);
 	snd_soc_component_update_bits(component, TAS2505_REF_POR_LDO_BGAP_CTRL,
@@ -426,11 +442,15 @@ static void tas2505_power_on(struct snd_soc_component *component)
 
 static void tas2505_power_off(struct snd_soc_component *component)
 {
+	struct tas2505_priv *tas2505 = snd_soc_component_get_drvdata(component);
+
 	snd_soc_component_update_bits(component, TAS2505_REF_POR_LDO_BGAP_CTRL,
 		TAS2505_REF_POR_LDO_BGAP_MASTER_REF_MASK, 0);
 	snd_soc_component_update_bits(component, TAS2505_LDO_CTRL,
 		TAS2505_LDO_PLL_HP_LVL_MASK,
 		TAS2505_LDO_PLL_HP_LVL_MASK);
+
+	regcache_cache_only(tas2505->regmap, true);
 }
 
 static int tas2505_set_bias_level(struct snd_soc_component *component,
@@ -469,6 +489,9 @@ static int tas2505_codec_probe(struct snd_soc_component *component)
 {
 	struct tas2505_priv *tas2505 = snd_soc_component_get_drvdata(component);
 	tas2505->component = component;
+
+	regcache_cache_only(tas2505->regmap, true);
+	regcache_mark_dirty(tas2505->regmap);
 	return 0;
 }
 
